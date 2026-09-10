@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Escala Cósmica - Volumetria do Sistema Solar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <style>
+        :root {
+            --bg-dark: #05070f;
+            --panel-bg: rgba(13, 18, 36, 0.75);
+            --panel-border: rgba(0, 240, 255, 0.2);
+            --accent-cyan: #00f0ff;
+            --accent-blue: #0077ff;
+            --accent-gold: #ffb700;
+            --text-main: #f0f6fc;
+            --text-muted: #8b949e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #webgl-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* HUD & Overlay UI */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .ui-layer.hidden {
+            opacity: 0;
+            transform: scale(0.98);
+            pointer-events: none !important;
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        /* Glassmorphism Card Style */
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            padding: 20px;
+        }
+
+        /* Header UI */
+        header.brand-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title-box h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, #fff 0%, var(--accent-cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+        }
+
+        .title-box p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Toggle Button */
+        .toggle-btn {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            z-index: 100;
+            background: rgba(13, 18, 36, 0.85);
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            padding: 10px 18px;
+            border-radius: 30px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+            pointer-events: auto;
+        }
+
+        .toggle-btn:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-dark);
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.6);
+        }
+
+        /* Main Controls Side Panel */
+        .controls-container {
+            width: 360px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .mode-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px;
+            border-radius: 10px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--accent-blue);
+            color: #fff;
+            box-shadow: 0 0 12px rgba(0, 119, 255, 0.4);
+        }
+
+        .selector-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .planet-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .planet-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 10px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.85rem;
+        }
+
+        .planet-btn:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 240, 255, 0.05);
+        }
+
+        .planet-btn.active {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 240, 255, 0.15);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+        }
+
+        .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* Action Buttons */
+        .action-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #00f0ff 0%, #0077ff 100%);
+            color: #000;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 800;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .action-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.6);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+
+        .secondary-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            box-shadow: none;
+            margin-top: 8px;
+        }
+
+        .secondary-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: none;
+        }
+
+        /* Stat Counter Overlay */
+        .stat-card {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            min-width: 320px;
+            max-width: 400px;
+        }
+
+        .counter-val {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: var(--accent-cyan);
+            text-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+            margin: 8px 0;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .counter-val .unit {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .info-fact {
+            font-size: 0.82rem;
+            line-height: 1.5;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        .info-fact strong {
+            color: var(--text-main);
+        }
+
+        /* Scientific Note Tag */
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            font-family: 'Orbitron', sans-serif;
+            background: rgba(0, 240, 255, 0.15);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            margin-bottom: 6px;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .ui-layer { padding: 16px; }
+            .controls-container { width: 100%; max-width: 100%; }
+            .stat-card { position: relative; bottom: auto; right: auto; width: 100%; max-width: 100%; margin-top: 10px; }
+            .ui-layer { overflow-y: auto; justify-content: flex-start; gap: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="webgl-container"></div>
+
+    <button class="toggle-btn" id="toggle-ui">
+        <i class="fa-solid fa-eye-slash"></i>
+        <span id="toggle-text">Ocultar Interface</span>
+    </button>
+
+    <div class="ui-layer" id="ui-layer">
+        
+        <header class="brand-header interactive">
+            <div class="glass-panel title-box">
+                <span class="badge"><i class="fa-solid fa-atom"></i> SIMULADOR DE ESCALA VOLUMÉTRICA</span>
+                <h1>A Realidade do Espaço</h1>
+                <p>Veja quantos planetas realmente cabem dentro dos gigantes do Sistema Solar.</p>
+            </div>
+        </header>
+
+        <div class="controls-container interactive">
+            <div class="glass-panel">
+                <div class="selector-label">1. Escolha o Recipiente Principal</div>
+                <div class="mode-tabs">
+                    <button class="tab-btn active" id="tab-jupiter" onclick="setContainerMode('jupiter')">
+                        <i class="fa-solid fa-circle"></i> JÚPITER
+                    </button>
+                    <button class="tab-btn" id="tab-sun" onclick="setContainerMode('sun')">
+                        <i class="fa-solid fa-sun"></i> O SOL
+                    </button>
+                </div>
+
+                <div class="selector-label" style="margin-top: 16px;">2. Selecione o Objeto para Encher</div>
+                <div class="planet-grid" id="planet-selector-grid">
+                    </div>
+
+                <div style="margin-top: 20px;">
+                    <button class="action-btn" id="btn-pour" onclick="startPouring()">
+                        <i class="fa-solid fa-faucet-drip"></i> Derramar Recipiente
+                    </button>
+                    <button class="action-btn secondary-btn" id="btn-reset" onclick="resetSimulation()">
+                        <i class="fa-solid fa-rotate-right"></i> Esvaziar / Resetar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel stat-card interactive">
+            <div class="badge" id="stat-badge">PROPORÇÃO VOLUMÉTRICA</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);" id="stat-title">Objetos inseridos em Júpiter:</div>
+            
+            <div class="counter-val">
+                <span id="counter">0</span>
+                <span class="unit" id="counter-unit">/ 1.321 Terras</span>
+            </div>
+
+            <div class="info-fact" id="info-fact-text">
+                O volume do planeta Júpiter é de aproximadamente <strong>1,43 × 10¹⁵ km³</strong>. Matematicamente, cabem cerca de 1.321 planetas Terra dentro do volume total de Júpiter.
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /* --- SCIENTIFIC DATA & CONFIG --- */
+        const SIM_DATA = {
+            jupiter: {
+                name: "Júpiter",
+                radiusKm: 69911,
+                color: 0xd8ca9d,
+                wireColor: 0xffaa44,
+                items: {
+                    earth: {
+                        name: "Terra",
+                        color: 0x2b82c9,
+                        exactRatio: 1321,
+                        radiusRatio: 0.091, // Relative radius scale for visualization
+                        displayUnit: "Terras",
+                        fact: "Matematicamente, cabem <strong>1.321 Terras</strong> dentro de Júpiter por volume puro. Na prática (empacotamento esférico real), caberiam cerca de 900 a 1.000 esferas rígidas."
+                    },
+                    mercury: {
+                        name: "Mercúrio",
+                        color: 0xaaaaaa,
+                        exactRatio: 24000,
+                        radiusRatio: 0.035,
+                        displayUnit: "Mercúrios",
+                        fact: "Mercúrio é o menor planeta do Sistema Solar. O volume de Júpiter equivale a impressionantes <strong>24.000 Mercúrios</strong>!"
+                    },
+                    venus: {
+                        name: "Vênus",
+                        color: 0xe3bb76,
+                        exactRatio: 1530,
+                        radiusRatio: 0.086,
+                        displayUnit: "Vênus",
+                        fact: "Vênus é quase do mesmo tamanho da Terra. Dentro do volume gigantesco de Júpiter caberiam cerca de <strong>1.530 planetas Vênus</strong>."
+                    },
+                    mars: {
+                        name: "Marte",
+                        color: 0xc85236,
+                        exactRatio: 8700,
+                        radiusRatio: 0.048,
+                        displayUnit: "Martes",
+                        fact: "Marte possui aproximadamente metade do diâmetro terrestre. Seriam necessários <strong>8.700 planetas Marte</strong> para preencher o interior de Júpiter."
+                    }
+                }
+            },
+            sun: {
+                name: "O Sol",
+                radiusKm: 696340,
+                color: 0xffaa00,
+                wireColor: 0xff4500,
+                items: {
+                    jupiter: {
+                        name: "Júpiter",
+                        color: 0xd8ca9d,
+                        exactRatio: 1300,
+                        radiusRatio: 0.100,
+                        displayUnit: "Júpiteres",
+                        fact: "Mesmo Júpiter sendo o maior planeta do Sistema Solar, o Sol é tão colossal que comportaria aproximadamente <strong>1.300 Júpiteres</strong> em seu volume!"
+                    },
+                    saturn: {
+                        name: "Saturno",
+                        color: 0xe2bf7d,
+                        exactRatio: 1700,
+                        radiusRatio: 0.083,
+                        displayUnit: "Saturnos",
+                        fact: "Caberiam cerca de <strong>1.700 planetas Saturno</strong> (sem contar seus anéis) no volume ocupado pelo Sol."
+                    },
+                    uranus: {
+                        name: "Urano",
+                        color: 0x73c2c6,
+                        exactRatio: 58000,
+                        radiusRatio: 0.036,
+                        displayUnit: "Uranos",
+                        fact: "O gigante de gelo Urano é pequeno perto da nossa estrela: cabem aproximadamente <strong>58.000 Uranos</strong> dentro do Sol."
+                    },
+                    neptune: {
+                        name: "Netuno",
+                        color: 0x274687,
+                        exactRatio: 57000,
+                        radiusRatio: 0.036,
+                        displayUnit: "Netunos",
+                        fact: "Netuno possui volume similar ao de Urano. Seriam necessários cerca de <strong>57.000 Netunos</strong> para preencher completamente a esfera solar."
+                    }
+                }
+            }
+        };
+
+        /* --- STATE VARIABLES --- */
+        let currentContainerMode = 'jupiter';
+        let currentItemKey = 'earth';
+        let isPouring = false;
+        let filledCount = 0;
+        let targetTotal = 1321;
+        
+        // Three.js Scene Variables
+        let scene, camera, renderer, controls;
+        let containerSphereMesh, jarContainerMesh, jarLidMesh;
+        let instancedMesh = null;
+        let particlePositions = [];
+        let animationReq = null;
+
+        // Visual constants
+        const CONTAINER_RADIUS = 5;
+        const JAR_POSITION = new THREE.Vector3(-8, 7, 0);
+        const MAX_VISUAL_SPHERES = 1200; // Limit rendering spheres for high performance (60fps guaranteed)
+
+        /* --- INITIALIZATION --- */
+        window.addEventListener('DOMContentLoaded', () => {
+            initThree();
+            setupUI();
+            updateModeUI();
+            resetSimulation();
+            animate();
+        });
+
+        /* --- THREE.JS ENGINE SETUP --- */
+        function initThree() {
+            const container = document.getElementById('webgl-container');
+            
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x05070f, 0.015);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 4, 18);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 35;
+            controls.minDistance = 6;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0x00f0ff, 1.2);
+            dirLight1.position.set(10, 20, 15);
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0xff4500, 0.8);
+            dirLight2.position.set(-10, -10, -10);
+            scene.add(dirLight2);
+
+            // Create Starfield Background
+            createStarfield();
+
+            // Create Main Dynamic Objects
+            createTargetContainerSphere();
+            createSourceJar();
+
+            // Window Resize Listener
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createStarfield() {
+            const starsGeo = new THREE.BufferGeometry();
+            const count = 3000;
+            const positions = new Float32Array(count * 3);
+            for(let i=0; i<count*3; i+=3) {
+                positions[i] = (Math.random() - 0.5) * 200;
+                positions[i+1] = (Math.random() - 0.5) * 200;
+                positions[i+2] = (Math.random() - 0.5) * 200;
+            }
+            starsGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.6 });
+            const starField = new THREE.Points(starsGeo, starsMat);
+            scene.add(starField);
+        }
+
+        /* --- 3D MESH BUILDERS --- */
+        function createTargetContainerSphere() {
+            const group = new THREE.Group();
+            
+            // Outer Glass Shell
+            const glassGeo = new THREE.SphereGeometry(CONTAINER_RADIUS, 32, 32);
+            const glassMat = new THREE.MeshPhysicalMaterial({
+                color: 0x00f0ff,
+                transparent: true,
+                opacity: 0.15,
+                roughness: 0.1,
+                transmission: 0.9,
+                thickness: 1.2,
+                wireframe: false
+            });
+            const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+            group.add(glassMesh);
+
+            // Outer Wireframe Grid (Ultra-modern Holographic look)
+            const wireGeo = new THREE.SphereGeometry(CONTAINER_RADIUS * 1.01, 24, 24);
+            const wireMat = new THREE.MeshBasicMaterial({
+                color: 0x00f0ff,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.25
+            });
+            const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+            group.add(wireMesh);
+
+            containerSphereMesh = group;
+            scene.add(containerSphereMesh);
+        }
+
+        function createSourceJar() {
+            const jarGroup = new THREE.Group();
+
+            // Glass Cylinder (Beaker / Jar Body)
+            const jarGeo = new THREE.CylinderGeometry(1.2, 1.2, 3, 24, 1, true);
+            const jarMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.3,
+                roughness: 0.2,
+                side: THREE.DoubleSide
+            });
+            const jarBody = new THREE.Mesh(jarGeo, jarMat);
+            jarGroup.add(jarBody);
+
+            // Metal Ring Trim
+            const ringGeo = new THREE.TorusGeometry(1.25, 0.08, 16, 32);
+            const ringMat = new THREE.MeshStandardMaterial({ color: 0x00f0ff, metalness: 0.8, roughness: 0.2 });
+            const ringTop = new THREE.Mesh(ringGeo, ringMat);
+            ringTop.rotation.x = Math.PI / 2;
+            ringTop.position.y = 1.5;
+            jarGroup.add(ringTop);
+
+            jarGroup.position.copy(JAR_POSITION);
+            jarGroup.rotation.z = -Math.PI / 6; // Angled down towards container
+
+            jarContainerMesh = jarGroup;
+            scene.add(jarContainerMesh);
+        }
+
+        /* --- SPHERE PACKING MATH & GENERATION --- */
+        function precalculatePositions(count, planetRadius) {
+            particlePositions = [];
+            
+            // Sphere packing algorithm inside container radius (CONTAINER_RADIUS * 0.9)
+            const maxR = CONTAINER_RADIUS * 0.88;
+            
+            for (let i = 0; i < count; i++) {
+                // Fibonacci sphere sampling for uniform distribution filling from bottom up
+                const y = -maxR + (2 * maxR * (i / count));
+                const radiusAtY = Math.sqrt(Math.max(0, maxR * maxR - y * y));
+                const theta = i * 2.39996; // Golden ratio angle
+
+                const rScale = Math.pow(Math.random(), 0.3); // Slight density center fill
+                const x = Math.cos(theta) * radiusAtY * rScale;
+                const z = Math.sin(theta) * radiusAtY * rScale;
+
+                particlePositions.push(new THREE.Vector3(x, y, z));
+            }
+        }
+
+        function updateInstancedMesh() {
+            if (instancedMesh) {
+                scene.remove(instancedMesh);
+                instancedMesh.geometry.dispose();
+                instancedMesh.material.dispose();
+            }
+
+            const currentData = SIM_DATA[currentContainerMode].items[currentItemKey];
+            const visualCount = Math.min(targetTotal, MAX_VISUAL_SPHERES);
+            
+            // Scale object visualization
+            const rScale = currentData.radiusRatio * CONTAINER_RADIUS * 0.8;
+            const itemGeo = new THREE.SphereGeometry(rScale, 12, 12);
+            const itemMat = new THREE.MeshStandardMaterial({
+                color: currentData.color,
+                roughness: 0.4,
+                metalness: 0.2
+            });
+
+            instancedMesh = new THREE.InstancedMesh(itemGeo, itemMat, visualCount);
+            instancedMesh.count = 0; // Start hidden
+            scene.add(instancedMesh);
+
+            precalculatePositions(visualCount, rScale);
+        }
+
+        /* --- ANIMATION & POURING LOGIC --- */
+        let pourProgress = 0;
+
+        function startPouring() {
+            if (isPouring || filledCount >= targetTotal) return;
+            isPouring = true;
+            document.getElementById('btn-pour').disabled = true;
+
+            const totalVisual = Math.min(targetTotal, MAX_VISUAL_SPHERES);
+            const duration = 3500; // 3.5 seconds pour duration
+            const startTime = performance.now();
+            
+            const startFilled = filledCount;
+
+            function animatePour(time) {
+                const elapsed = time - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // EaseOutCubic smooth flow
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+                
+                const currentTargetCount = Math.floor(startFilled + (targetTotal - startFilled) * easeProgress);
+                filledCount = currentTargetCount;
+
+                // Update UI Counter
+                document.getElementById('counter').innerText = filledCount.toLocaleString('pt-BR');
+
+                // Update Rendered Instanced Spheres
+                const currentVisualCount = Math.floor((filledCount / targetTotal) * totalVisual);
+                
+                const dummy = new THREE.Object3D();
+                for (let i = 0; i < currentVisualCount; i++) {
+                    const targetPos = particlePositions[i];
+                    
+                    // Simple Pouring Drop Transition Effect for newly appearing spheres
+                    if (i > instancedMesh.count - 30 && progress < 1) {
+                        const dropFactor = Math.sin((i / totalVisual) * Math.PI);
+                        dummy.position.lerpVectors(JAR_POSITION, targetPos, 0.8);
+                    } else {
+                        dummy.position.copy(targetPos);
+                    }
+                    
+                    dummy.updateMatrix();
+                    instancedMesh.setMatrixAt(i, dummy.matrix);
+                }
+                
+                instancedMesh.count = currentVisualCount;
+                instancedMesh.instanceMatrix.needsUpdate = true;
+
+                // Rotate Jar slightly while pouring
+                jarContainerMesh.rotation.z = -Math.PI / 6 - Math.sin(progress * Math.PI) * 0.2;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animatePour);
+                } else {
+                    isPouring = false;
+                    document.getElementById('btn-pour').disabled = false;
+                }
+            }
+
+            requestAnimationFrame(animatePour);
+        }
+
+        function resetSimulation() {
+            isPouring = false;
+            filledCount = 0;
+            document.getElementById('btn-pour').disabled = false;
+            document.getElementById('counter').innerText = "0";
+
+            // Update Target Wireframe Glass Color
+            const modeData = SIM_DATA[currentContainerMode];
+            containerSphereMesh.children[0].material.color.setHex(modeData.wireColor);
+            containerSphereMesh.children[1].material.color.setHex(modeData.wireColor);
+
+            updateInstancedMesh();
+        }
+
+        /* --- UI CONTROLS & INTERACTION --- */
+        function setupUI() {
+            // Interface Hide/Show Toggle
+            const toggleBtn = document.getElementById('toggle-ui');
+            const uiLayer = document.getElementById('ui-layer');
+            const toggleText = document.getElementById('toggle-text');
+            const toggleIcon = toggleBtn.querySelector('i');
+
+            let isHidden = false;
+
+            toggleBtn.addEventListener('click', () => {
+                isHidden = !isHidden;
+                if (isHidden) {
+                    uiLayer.classList.add('hidden');
+                    toggleText.innerText = "Mostrar Interface";
+                    toggleIcon.className = "fa-solid fa-eye";
+                } else {
+                    uiLayer.classList.remove('hidden');
+                    toggleText.innerText = "Ocultar Interface";
+                    toggleIcon.className = "fa-solid fa-eye-slash";
+                }
+            });
+        }
+
+        function setContainerMode(mode) {
+            if (currentContainerMode === mode) return;
+            currentContainerMode = mode;
+
+            // Update Tab UI
+            document.getElementById('tab-jupiter').classList.toggle('active', mode === 'jupiter');
+            document.getElementById('tab-sun').classList.toggle('active', mode === 'sun');
+
+            // Set default planet item for mode
+            currentItemKey = Object.keys(SIM_DATA[mode].items)[0];
+
+            updateModeUI();
+            resetSimulation();
+        }
+
+        function selectItem(key) {
+            if (currentItemKey === key) return;
+            currentItemKey = key;
+            
+            updateModeUI();
+            resetSimulation();
+        }
+
+        function updateModeUI() {
+            const modeData = SIM_DATA[currentContainerMode];
+            const itemData = modeData.items[currentItemKey];
+            
+            targetTotal = itemData.exactRatio;
+
+            // Render Sub-Planet Selection Grid Buttons
+            const gridContainer = document.getElementById('planet-selector-grid');
+            gridContainer.innerHTML = '';
+
+            Object.keys(modeData.items).forEach(key => {
+                const item = modeData.items[key];
+                const btn = document.createElement('button');
+                btn.className = `planet-btn ${key === currentItemKey ? 'active' : ''}`;
+                btn.onclick = () => selectItem(key);
+
+                const colorHex = '#' + item.color.toString(16).padStart(6, '0');
+                btn.innerHTML = `
+                    <span class="color-dot" style="background-color: ${colorHex}; box-shadow: 0 0 8px ${colorHex}"></span>
+                    <span>${item.name}</span>
+                `;
+                gridContainer.appendChild(btn);
+            });
+
+            // Update Counter Text Units and Scientific Info Card
+            document.getElementById('stat-title').innerText = `Objetos inseridos em ${modeData.name}:`;
+            document.getElementById('counter-unit').innerText = `/ ${targetTotal.toLocaleString('pt-BR')} ${itemData.displayUnit}`;
+            document.getElementById('info-fact-text').innerHTML = itemData.fact;
+        }
+
+        /* --- RENDER LOOP & RESIZE --- */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Subtle Idle Rotations
+            if (containerSphereMesh) {
+                containerSphereMesh.rotation.y += 0.002;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
